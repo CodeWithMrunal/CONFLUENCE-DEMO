@@ -68,12 +68,16 @@ def get_conflicting_files(pr_number):
 
     repo_path = "/tmp/github_repo"
 
+    # Clone repo only if not already cloned
     if not os.path.exists(repo_path):
         subprocess.run(["git", "clone", f"https://github.com/{REPO_OWNER}/{REPO_NAME}.git", repo_path])
 
     os.chdir(repo_path)
 
-    subprocess.run(["git", "fetch", "origin"])
+    # Ensure the repository is fully updated before merging
+    subprocess.run(["git", "reset", "--hard", "origin/main"])
+    subprocess.run(["git", "clean", "-fd"])  # Remove untracked files
+    subprocess.run(["git", "fetch", "--all"])  # Fetch all branches
     subprocess.run(["git", "checkout", "main"])
     subprocess.run(["git", "pull", "origin", "main"])
 
@@ -83,11 +87,12 @@ def get_conflicting_files(pr_number):
     if merge_result.returncode != 0:
         print("Merge conflict detected!")
 
-        # Run `git status --porcelain` to get conflicting files
-        status_result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
-        conflict_files = [
-            line.split(" ")[1] for line in status_result.stdout.split("\n") if line.startswith("UU")
-        ]
+        # Run `git diff --name-only --diff-filter=U` to list conflicting files
+        conflict_result = subprocess.run(["git", "diff", "--name-only", "--diff-filter=U"],
+                                         capture_output=True, text=True)
+
+        conflict_files = conflict_result.stdout.strip().split("\n")
+        conflict_files = [file.strip() for file in conflict_files if file.strip()]  # Remove empty lines
 
         print(f"Conflicting files: {conflict_files}")
     else:
@@ -95,6 +100,7 @@ def get_conflicting_files(pr_number):
 
     # Abort the merge to clean up
     subprocess.run(["git", "merge", "--abort"])
+
 
 
 
