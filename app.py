@@ -36,23 +36,30 @@ def analyze_pr_conflicts(pr_number):
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/pulls/{pr_number}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
 
-    # Retry loop (wait for GitHub to compute mergeable status)
-    for i in range(5):
+    mergeable = None
+    mergeable_state = None
+
+    # Wait up to 15 seconds for GitHub to determine mergeability
+    for i in range(7):  # Retry 7 times (up to 14 seconds)
         response = requests.get(url, headers=headers)
         pr_data = response.json()
         mergeable = pr_data.get("mergeable")
+        mergeable_state = pr_data.get("mergeable_state")
 
-        if mergeable is not None:  # GitHub finished analyzing mergeability
+        if mergeable is not None:  # GitHub finished processing
             break
 
-        print(f"Waiting for GitHub to determine mergeability... (Attempt {i+1}/5)")
-        time.sleep(2)  # Wait 2 seconds before retrying
+        print(f"Waiting for GitHub to determine mergeability... (Attempt {i+1}/7)")
+        time.sleep(2)
 
-    if mergeable is False:
+    print(f"GitHub API response: mergeable={mergeable}, mergeable_state={mergeable_state}")
+
+    if mergeable is False or mergeable_state in ["dirty", "unknown"]:
         print(f"PR #{pr_number} has merge conflicts!")
         get_conflicting_files(pr_number)
     else:
         print(f"PR #{pr_number} is mergeable!")
+
 
 
 
